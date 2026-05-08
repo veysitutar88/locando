@@ -72,6 +72,33 @@ MCP config:
 - **Named exports для компонентов** (никаких `default export`)
 - **Никаких barrel files** (никаких `index.ts` re-exports)
 
+## Git push policy
+
+GitHub is the active mobile synchronization channel for Locando.
+Igor works across desktop and mobile, so push is part of the working flow.
+
+Distinction:
+- `git commit` = local project checkpoint
+- `git push` = sync checkpoint to GitHub for mobile review / cross-device continuity
+- `git push` is NOT a production deploy, NOT a release, NOT approval to continue automatically
+
+Push allowed when ALL true:
+1. Working tree contains only intended files
+2. No secrets in staged/tracked files (verify `.env.local` absent)
+3. build/lint/test pass if relevant to the chunk
+4. Commit message describes the chunk accurately
+
+After push:
+- Show `git log --oneline -3`
+- Show `git status` (must be clean)
+- Stop and wait for Igor's review
+
+Do NOT push when:
+- `.env.local` or real secrets are staged/tracked
+- build/lint/test failed and chunk requires them
+- Commit contains unreviewed unrelated changes
+- Igor explicitly said "commit only" or "do not push"
+
 ## Do-not rules
 
 - DO NOT использовать Supabase Auth
