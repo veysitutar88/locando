@@ -1,0 +1,12 @@
+{
+  "_comment": "Postgres MCP runtime resolution FAILED in Chunk #2.5 verification. The ${DATABASE_URL} placeholder requires DATABASE_URL to be exported in the shell/user/machine env scope where Claude Code launches the MCP server. DATABASE_URL is currently only in .env.local (project file), which the standard MCP runtime does not auto-load. Two paths to resolve in a future chunk: (a) export DATABASE_URL at shell level (Igor adds it to system env or to a shell profile), or (b) wrap the postgres MCP launch in a shell that pre-loads .env.local. See docs/DECISIONS.md ADR #12 for full diagnosis. Until resolved, do NOT merge this block back into .mcp.json — broken MCP entry causes startup errors on every session.",
+  "mcpServers": {
+    "postgres": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-postgres"],
+      "env": {
+        "DATABASE_URL": "${DATABASE_URL}"
+      }
+    }
+  }
+}

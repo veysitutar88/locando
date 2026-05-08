@@ -281,8 +281,8 @@ Custom domains (e.g., `book.j6restaurant.de` pointing directly to Locando) are e
 
 ## ADR #12 — Postgres MCP intentionally deferred to Chunk #2
 
-**Date:** 2026-05-08 (Chunk #1.5 cleanup)
-**Status:** Accepted
+**Date:** 2026-05-08 (Chunk #1.5 cleanup); revisited 2026-05-08 (Chunk #2.5 verification)
+**Status:** Configured but runtime resolution failed — re-deferred
 
 **Problem:** The `aif` workflow recommends adding the `postgres` MCP server to `.mcp.json` for projects that use Postgres. However, the `postgres` MCP requires a `DATABASE_URL` environment variable, and Locando does not yet have a Neon project (creation is the first task of Chunk #2).
 
@@ -298,6 +298,32 @@ Custom domains (e.g., `book.j6restaurant.de` pointing directly to Locando) are e
 **Consequences:**
 - `.mcp.json.todo` is committed alongside `.mcp.json`
 - Chunk #2 first task: create Neon project → set `DATABASE_URL` → merge `.mcp.json.todo` content into `.mcp.json` → delete `.mcp.json.todo`
+
+---
+
+### Chunk #2.5 verification — runtime resolution FAILED
+
+**Verification performed (2026-05-08):**
+- Step 1: Checked shell-level `DATABASE_URL` in PowerShell — **not exported** in process scope
+- Step 2: Checked Windows user-level env var via `[System.Environment]::GetEnvironmentVariable('DATABASE_URL', 'User')` — **not set**
+- Step 3: Checked machine-level env var — **not set**
+- Step 4: ToolSearch for `postgres` MCP tools in current Claude Code session — **0 tools loaded** (server failed to start or didn't register)
+- Step 5: ListMcpResourcesTool — no postgres resources
+
+**Root cause:** `${DATABASE_URL}` placeholder in `.mcp.json` is expanded against the **shell/OS environment** where Claude Code launches the MCP child process. `DATABASE_URL` is currently only in `.env.local` (project file). The standard MCP runtime does not auto-load `.env.local` — it expects OS-level env vars. Result: the postgres MCP child receives an unresolved or empty `DATABASE_URL` and fails to connect.
+
+**Confidence:** **FAILED** (HIGH confidence — three independent env scopes verified empty, MCP server demonstrably not registered).
+
+**Action taken in Chunk #2.5:**
+- `postgres` block removed from `.mcp.json` (kept clean: only filesystem + playwright active)
+- `postgres` block restored to `.mcp.json.todo` with diagnostic comment
+- This ADR updated to "Configured but runtime resolution failed — re-deferred"
+
+**Two paths forward** (next time postgres MCP is needed):
+1. Export `DATABASE_URL` at OS or shell level (Igor adds it to Windows user env vars or a shell profile)
+2. Wrap the postgres MCP launch via a shell command that pre-loads `.env.local`, e.g. `cmd: "powershell"`, args invoking a wrapper script that does `Get-Content .env.local | foreach { [...]; export }` before exec'ing the MCP
+
+Decision on which path to choose is deferred — no chunk currently blocks on postgres MCP being available.
 
 ---
 
@@ -350,10 +376,19 @@ Custom domains (e.g., `book.j6restaurant.de` pointing directly to Locando) are e
 
 ## ADR #15 — Git repository initialized despite --no-git flag
 
-**Date:** 2026-05-08 (Chunk #1.5 cleanup)
-**Status:** Documented
+**Date:** 2026-05-08 (Chunk #1.5 cleanup); extended 2026-05-08 (Chunk #2.5 verification)
+**Status:** Documented (scope expanded — not just init, also auto-commit)
 
 **Problem:** `npx create-next-app@latest . --no-git ...` was expected to skip git initialization. However, create-next-app v16.2.6 created a `.git/` directory anyway and reported "Initialized a git repository." This is the observed behavior of create-next-app v16.2.6 in this environment; whether intentional or a regression has not been verified upstream.
+
+**Additional finding (Chunk #2.5):** The auto-init goes further than originally documented. After our Chunk #1+#2 commit (`b860537`), inspecting `git log` revealed a **prior commit created automatically by create-next-app v16.2.6** before any of our work:
+
+```
+b860537 feat: project foundation + database schema (chunks 1-2)   ← our work
+b027463 Initial commit from Create Next App                         ← auto-created by create-next-app v16
+```
+
+So v16 not only initializes `.git/` despite `--no-git`, but also stages all scaffold files and creates a first commit unprompted. Commit hash `b027463` is the evidence in this repo. This means our Chunk #1+#2 commit is technically the **second** commit, not the first — but it remains the first commit reflecting our deliberate work.
 
 **Options:**
 1. Delete `.git/` and stay un-versioned until ready
