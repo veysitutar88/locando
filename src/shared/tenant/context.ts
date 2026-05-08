@@ -1,11 +1,12 @@
 import 'server-only';
 import { headers } from 'next/headers';
-import { eq } from 'drizzle-orm';
-import { db } from '@/shared/db/client';
-import { restaurants } from '@/shared/db/schema';
+import {
+  restaurantsRepo,
+  type Restaurant,
+} from '@/shared/db/restaurants-repo';
 import { TENANT_HEADER } from './constants';
 
-export type Tenant = typeof restaurants.$inferSelect;
+export type Tenant = Restaurant;
 
 export class TenantNotFoundError extends Error {
   constructor() {
@@ -18,10 +19,7 @@ export async function getTenant(): Promise<Tenant | null> {
   const h = await headers();
   const slug = h.get(TENANT_HEADER);
   if (!slug) return null;
-  const tenant = await db.query.restaurants.findFirst({
-    where: eq(restaurants.slug, slug),
-  });
-  return tenant ?? null;
+  return restaurantsRepo.findBySlug(slug);
 }
 
 export async function requireTenant(): Promise<Tenant> {
