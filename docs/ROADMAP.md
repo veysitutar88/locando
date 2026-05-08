@@ -1,24 +1,28 @@
 # Roadmap — Locando
 
-35 chunks across 6 phases. Each chunk is 1–2.5 hours of focused work.
+~34 chunks across 6 phases. Each chunk is 1–2.5 hours of focused work.
 Total estimate: ~80–90 hours.
+
+> **Numbering note:** the original plan had 35 chunks. Chunks #2 (Neon
+> + Drizzle config) and #3 (Database schema) of that plan were executed
+> as a single Chunk #2 in practice, so Phase 1 numbering shifts by −1
+> from #3 onward. Phases 2–6 will be renumbered as their chunks come up.
 
 ---
 
-## Phase 1 — Foundation (Chunks 1–8, ~19h)
+## Phase 1 — Foundation (Chunks 1–7, ~19h)
 
 Project setup, database schema, multi-tenant middleware, base UI shared components.
 
 | Chunk | Name | Est. | Description |
 |-------|------|------|-------------|
-| #1 | Project Foundation | 2.5h | Next.js scaffold, aif setup, .claude/ context, docs/, module structure |
-| #2 | Neon + Drizzle Config | 2h | Neon project creation, drizzle.config.ts, DATABASE_URL, connection test |
-| #3 | Database Schema | 2.5h | schema.ts with all 5 tables, relations, drizzle-kit generate + first migration |
-| #4 | Multi-tenant Middleware | 3h | Subdomain resolver, tenant context, guard HOC, local dev config |
-| #5 | Shared UI Components | 3h | Button, Input, Modal, Toast, StatusBadge — Tailwind 4 styled |
-| #6 | Webhook Infrastructure | 2h | webhook_deliveries table, event emitter, outgoing HTTP delivery, retry |
-| #7 | Email Templates | 2h | OTP email, confirmation email, cancellation email (Resend + React Email) |
-| #8 | Error Handling Layer | 2h | Global error boundary, structured errors, 404/500 pages, logging setup |
+| #1 | Project Foundation | 2.5h | Next.js scaffold, aif setup, .claude/ context, docs/, module structure (DONE) |
+| #2 | Neon + Drizzle + Schema | 4.5h | Neon project, drizzle.config.ts, DATABASE_URL, schema.ts (5 tables + relations), first migration (DONE; merges original #2 and #3) |
+| #3 | Tenant Resolution Proxy | 3h | `src/proxy.ts` (Next 16 file convention; supersedes `middleware.ts`) parses Host → `x-tenant-slug`; `getTenant()` Server-side DB lookup; reserved subdomains; `DEV_TENANT_SLUG` for local dev; `TenantNotFound` page; June Six seed |
+| #4 | Shared UI Components | 3h | Button, Input, Modal, Toast, StatusBadge — Tailwind 4 styled |
+| #5 | Webhook Infrastructure | 2h | webhook_deliveries table, event emitter, outgoing HTTP delivery, retry |
+| #6 | Email Templates | 2h | OTP email, confirmation email, cancellation email (Resend + React Email) |
+| #7 | Error Handling Layer | 2h | Global error boundary, structured errors, 404/500 pages, logging setup |
 
 ---
 
