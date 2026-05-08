@@ -183,6 +183,31 @@ In practice, deletion won't happen in MVP (no tenant offboarding flow), but the 
 
 ---
 
+## Tenant Resolution Flow
+
+Implemented in Chunk #3. Two-tier architecture: Edge middleware parses the
+`Host` header, Server Components perform the DB lookup.
+
+1. Request arrives → `src/proxy.ts` (Next 16 file convention; the
+   former `middleware.ts`) parses the `Host` header via
+   `parseSubdomain()` and sets the `x-tenant-slug` request header.
+2. Server Component (or Server Action) calls `getTenant()` or
+   `requireTenant()` from `src/shared/tenant/context.ts`.
+3. The helper reads `x-tenant-slug` from `headers()` and queries
+   `restaurants` by slug via Drizzle.
+4. Returns `Tenant` object (typed as `typeof restaurants.$inferSelect`)
+   or `null`.
+5. Unknown / missing tenant → page renders the `TenantNotFound`
+   component (localized DE + EN).
+
+Reserved subdomains (`app`, `www`, `api`, `admin`, `book`, `root`,
+`_next`, `static`) bypass tenant resolution and pass through unchanged.
+Local development uses the `DEV_TENANT_SLUG` env-var (or
+`j6.localhost:3000` as a fallback). No tenant caching in MVP — direct DB
+lookup per request. June Six is the only seeded tenant.
+
+---
+
 ## Migrations Strategy
 
 Managed by Drizzle Kit:

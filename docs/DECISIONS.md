@@ -145,6 +145,7 @@ Portability remains high if we avoid Neon-specific features (e.g., Neon's branch
 - Next.js middleware reads `Host` header to resolve tenant on every request
 - Local development: use `localhost:3000` with a dev tenant config or use `j6.localhost:3000` via hosts file
 - Custom domains possible in post-MVP: tenant sets CNAME, Vercel handles SSL
+- Implementation (Chunk #3): `src/proxy.ts` (Next 16 renamed `middleware` → `proxy`; functionality identical) parses `Host` into the `x-tenant-slug` request header. Server Components read it via `getTenant()` which performs the DB lookup. Reserved subdomains (`app`, `www`, `api`, `admin`, `book`, `root`, `_next`, `static`) bypass tenant resolution. Two-tier split keeps the proxy on the Edge runtime so the DB lookup stays in Node (compatible with Passport.js per ADR #4).
 
 ---
 
@@ -240,6 +241,7 @@ Custom domains (e.g., `book.j6restaurant.de` pointing directly to Locando) are e
 - MVP supports `{slug}.locando.net` subdomains only. Custom domain support deferred to post-MVP; subdomain architecture (ADR #6) keeps this addition straightforward when prioritized.
 - iframe embed requires proper CSP headers (`frame-ancestors`)
 - JS widget deferred to post-MVP Phase 6 or beyond
+- Local development (Chunk #3): `DEV_TENANT_SLUG` env-var simulates a subdomain when accessing `localhost`. Optional `j6.localhost:3000` via `/etc/hosts` (macOS/Linux) or `C:\Windows\System32\drivers\etc\hosts` (Windows) works as a fallback without env-var changes.
 
 ---
 
