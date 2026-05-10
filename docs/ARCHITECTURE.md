@@ -132,6 +132,47 @@ src/
 
 ---
 
+## Shared UI Foundation
+
+Implemented in Chunk #5. `src/shared/ui/` contains tenant-neutral
+presentational primitives reusable across the public booking flow,
+owner dashboard, and waiter PWA.
+
+### Components
+
+| File | Exports |
+|------|---------|
+| `button.tsx` | `Button` |
+| `input.tsx` | `Input` |
+| `textarea.tsx` | `Textarea` |
+| `label.tsx` | `Label` |
+| `field-error.tsx` | `FieldError` |
+| `card.tsx` | `Card`, `CardHeader`, `CardTitle`, `CardDescription`, `CardContent`, `CardFooter` |
+| `status-badge.tsx` | `StatusBadge` |
+| `empty-state.tsx` | `EmptyState` |
+| `modal.tsx` | `Modal`, `ModalHeader`, `ModalTitle`, `ModalDescription`, `ModalContent`, `ModalFooter` |
+| `toast.tsx` | `Toast` |
+| `utils.ts` | `cn` (small string-based class joiner) |
+
+### Rules
+
+- **Named exports only.** No default exports. No barrel files (`index.ts`).
+- **Tenant-neutral.** No tenant-specific brand colors, logos, copy, or
+  identity baked into shared primitives. Tenant theming is deferred to a
+  future tenant/theme layer.
+- **No business imports.** UI primitives MUST NOT import from
+  `@/shared/db/*`, repositories, `@/shared/tenant/*`, auth, or
+  `@/modules/**`. They are presentational only.
+- **Minimal dependencies.** No shadcn, no Radix, no `clsx`, no
+  `tailwind-merge`. Plain React + Tailwind 4.
+- **Accessibility.** Form primitives expose `aria-invalid` for the
+  error state. `Toast` uses `role="status"`; `FieldError` uses
+  `role="alert"`. Modal accessibility (focus trap, escape-key handling,
+  full aria wiring) is intentionally deferred — see TODO comment in
+  `modal.tsx`.
+
+---
+
 ## Stack Decisions and Rationale
 
 ### Next.js 16 App Router
