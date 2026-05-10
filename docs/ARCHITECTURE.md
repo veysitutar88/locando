@@ -54,6 +54,57 @@ In development: `localhost:3000` maps to a default tenant. Subdomain simulation 
 
 ---
 
+## Repository Pattern
+
+Implemented in Chunk #4. All database access goes through hand-written
+repositories — never directly via `db.query.*` from feature code. The
+repository layer is the single chokepoint where `tenant_id` filtering
+is enforced.
+
+### Layout
+
+| Repo | Path | Scope |
+|------|------|-------|
+| `restaurantsRepo` | `src/shared/db/restaurants-repo.ts` | non-scoped (the tenant root itself) |
+| `reservationsRepo` | `src/modules/reservations/lib/reservations-repo.ts` | tenant-scoped (`tenantId` is first param) |
+| `tablesRepo` | `src/modules/reservations/lib/tables-repo.ts` | tenant-scoped (`tenantId` is first param) |
+
+Tenant-scoped repos take `tenantId: string` as the first argument of
+every method. Update payload types omit `id`, `tenantId`, `createdAt`,
+`updatedAt` so callers can't override fields the repository owns.
+
+### Helpers and errors
+
+- `withTimestamps()` (in `src/shared/db/helpers.ts`) — adds
+  `updatedAt: new Date()` to update payloads. Per ADR #16. Type
+  signature forbids passing `updatedAt` from the caller.
+- `NotFoundError`, `UniqueConstraintError` (in `src/shared/db/errors.ts`)
+  — thrown by repos when an entity is missing or a unique constraint is
+  violated. `TenantMismatchError` is intentionally **not** added in
+  Chunk #4 (YAGNI) — it will appear in the chunk that actually needs it.
+
+### ESLint enforcement
+
+`eslint.config.mjs` adds `no-restricted-imports` blocking imports of
+`@/shared/db/client` and `@/shared/db/schema` everywhere except:
+
+- `src/shared/db/**`
+- `src/modules/**/lib/*repo.ts`
+
+A missing `tenantId` filter is therefore caught at lint time rather
+than runtime. The rule is a guard, not a guarantee — security still
+relies on review and on the explicit `tenantId` parameter design.
+
+### Why hand-written, not a generic factory
+
+A `tenantScoped<T>()` factory was considered and rejected for now.
+Drizzle's generic typing required broad `as never` casts that would
+weaken the security guarantee the repository layer is meant to give.
+For tenant isolation (a security boundary), explicit > abstract. A
+factory may be extracted later when 3–4 stable repos exist (Chunk #15+).
+
+---
+
 ## Module Isolation Rule
 
 ```
