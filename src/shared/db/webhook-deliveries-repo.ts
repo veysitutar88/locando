@@ -109,6 +109,10 @@ export const webhookDeliveriesRepo = {
         | 'pending',
       updatedAt: now,
     };
+    // On final failure (nextAttemptAt === null) we leave the existing
+    // nextAttemptAt column unchanged; status='failed' removes the row
+    // from scheduler queries anyway, so the stored value no longer
+    // affects retry behavior.
     const [row] = await db
       .update(webhookDeliveries)
       .set(

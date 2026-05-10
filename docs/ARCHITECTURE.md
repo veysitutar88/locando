@@ -280,6 +280,17 @@ foundation that drains due `pending` deliveries sequentially. A real
 cron / background worker is **not** added in this chunk — when added
 later, it will simply call this function.
 
+### Scheduler tenant-scope exception
+
+`deliverPendingWebhooks()` is a **system-level scheduler operation**. It
+may scan due `webhook_deliveries` across tenants because it does not
+expose tenant data to users. Each delivery is then dispatched through
+`deliverWebhookDelivery(tenantId, deliveryId)`, which performs
+tenant-scoped lookup and updates. **User/admin-facing webhook queries
+must remain tenant-scoped** — `webhookDeliveriesRepo.findPendingDue()`
+is reserved for the scheduler entry point only and MUST NOT be called
+from request handlers serving a specific tenant.
+
 ### Dependency boundary
 
 UI / public pages / proxy / auth modules do **not** import from
