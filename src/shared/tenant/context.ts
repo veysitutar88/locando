@@ -4,16 +4,14 @@ import {
   restaurantsRepo,
   type Restaurant,
 } from '@/shared/db/restaurants-repo';
+import { TenantNotFoundError } from '@/shared/errors/app-error';
 import { TENANT_HEADER } from './constants';
 
 export type Tenant = Restaurant;
 
-export class TenantNotFoundError extends Error {
-  constructor() {
-    super('Tenant not found');
-    this.name = 'TenantNotFoundError';
-  }
-}
+// Re-export for compatibility with callers that imported
+// TenantNotFoundError from this module before Chunk #8.
+export { TenantNotFoundError };
 
 export async function getTenant(): Promise<Tenant | null> {
   const h = await headers();
