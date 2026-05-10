@@ -351,6 +351,45 @@ and call the chosen provider.
 
 ---
 
+## Error Handling Foundation
+
+Implemented in Chunk #8. `src/shared/errors/` is the single canonical
+location for application error classes and serializers. Future modules
+should throw `AppError`-derived errors instead of inventing local
+patterns.
+
+### Layout
+
+| File | Exports |
+|------|---------|
+| `app-error.ts` | `AppError`, `AppErrorCode`, `AppErrorOptions`, subclasses (`BadRequestError`, `UnauthorizedError`, `ForbiddenError`, `NotFoundError`, `ConflictError`, `UniqueConstraintError`, `ValidationError`, `TenantNotFoundError`, `TenantMismatchError`, `ExternalServiceError`, `WebhookDeliveryError`), `getDefaultStatusCode`, `getDefaultPublicMessage` |
+| `utils.ts` | `isAppError`, `toAppError`, `getSafeErrorMessage`, `serializePublicError`, `serializeInternalError` |
+| `logger.ts` | `logError`, `logInfo`, `LogLevel`, `LogContext` |
+| `handlers.ts` | `handleServerActionError`, `handleRouteError` |
+
+### Rules
+
+- **Public vs internal.** `serializePublicError()` returns only `{code, message}` using `publicMessage`. `serializeInternalError()` includes `message`, `statusCode`, `details`, `stack` and is intended for server-side logs only.
+- **Route / server-action helpers.** `handleRouteError(err)` returns a JSON `Response` with the AppError's `statusCode` and the public payload. `handleServerActionError(err)` returns `{ok: false, error: {code, message}}` for server actions.
+- **Logging is console-based placeholder.** `logError` and `logInfo` emit structured JSON on `console.error` / `console.info`. No external observability provider yet (no Sentry, no Logtail). When one is added, only `logger.ts` changes.
+- **Never throw raw strings or unwrapped framework errors at module boundaries.** Wrap with `toAppError()` if you must rethrow generic errors.
+- **No tenant-specific branding** in any of these files. Tenant identity is metadata for logging context (`LogContext.tenantId`), not branding.
+
+### Backward compatibility with Chunks #3 / #4
+
+- The canonical definitions of `NotFoundError`, `UniqueConstraintError` (added in Chunk #4) and `TenantNotFoundError` (added in Chunk #3) now live in `src/shared/errors/app-error.ts` as `AppError` subclasses with **preserved constructor signatures** — `new NotFoundError(entity?, id?)`, `new UniqueConstraintError(field)`, `new TenantNotFoundError()`. Existing call sites work unchanged.
+- `src/shared/db/errors.ts` is a thin compat re-export from `@/shared/errors/app-error`. Repository files keep importing from `@/shared/db/errors`.
+- `src/shared/tenant/context.ts` re-exports `TenantNotFoundError` for the same reason.
+
+### Optional UI
+
+`src/shared/ui/error-state.tsx` (`ErrorState`) is a tenant-neutral
+presentational component built on top of the Chunk #5 `Card` primitive.
+It accepts `title`, `message`, `action` and is for pages / boundaries to
+display an error to the user. It has no business logic.
+
+---
+
 ## Website Integration Strategy
 
 Locando is a booking engine, NOT each restaurant's website. Integration modes:

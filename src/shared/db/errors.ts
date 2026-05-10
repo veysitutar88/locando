@@ -1,16 +1,9 @@
-export class NotFoundError extends Error {
-  constructor(
-    public entity: string,
-    public id?: string,
-  ) {
-    super(`${entity}${id ? ` ${id}` : ''} not found`);
-    this.name = 'NotFoundError';
-  }
-}
+// Compat re-export: the canonical definitions live in
+// `@/shared/errors/app-error` (Chunk #8). This file is preserved so
+// existing imports (`import { NotFoundError } from '@/shared/db/errors'`)
+// from the repository layer continue to work without modification.
 
-export class UniqueConstraintError extends Error {
-  constructor(public field: string) {
-    super(`Unique constraint violated on ${field}`);
-    this.name = 'UniqueConstraintError';
-  }
-}
+export {
+  NotFoundError,
+  UniqueConstraintError,
+} from '@/shared/errors/app-error';
