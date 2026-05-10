@@ -300,6 +300,57 @@ by the existing ESLint guard.
 
 ---
 
+## Email Template Foundation
+
+Implemented in Chunk #7. `src/shared/email/` contains deterministic,
+tenant-neutral email rendering. **No provider integration yet** —
+nothing in this chunk sends email. A sending service (Resend in MVP)
+will be added in a later chunk and will consume `RenderedEmail`
+objects produced here.
+
+### Layout
+
+| File | Exports |
+|------|---------|
+| `types.ts` | `EmailAddress`, `RenderedEmail`, `TenantEmailIdentity`, `ReservationEmailData` |
+| `utils.ts` | `escapeHtml`, `formatPartySize`, `formatOptionalLine`, `createPlainTextBlock`, `createHtmlBlock` |
+| `layout.ts` | `renderBaseEmail` (produces `{subject, text, html}`) |
+| `templates/reservation-created.ts` | `renderReservationCreatedEmail` (guest: "we received your reservation request") |
+| `templates/reservation-confirmed.ts` | `renderReservationConfirmedEmail` (guest: "your reservation is confirmed") |
+| `templates/reservation-cancelled.ts` | `renderReservationCancelledEmail` (guest: "your reservation has been cancelled") |
+| `templates/staff-reservation-notification.ts` | `renderStaffReservationNotificationEmail` (staff: "new reservation request") |
+
+### Rules
+
+- **Named exports only.** No default exports. No barrel files.
+- **Tenant-neutral.** Tenant name is interpolated from
+  `TenantEmailIdentity`; no June Six branding, colors, or logos baked
+  into shared templates.
+- **No business imports.** Templates MUST NOT import from
+  `@/shared/db/*`, repositories, `@/shared/tenant/*`, auth, or
+  `@/modules/**`. They are pure rendering functions.
+- **Pure functions.** `renderXxxEmail(data) → RenderedEmail`. No side
+  effects, no I/O, no `fetch`, no DB.
+- **Escaping.** All dynamic values rendered into HTML pass through
+  `escapeHtml()`. Plain-text variant is included alongside HTML.
+- **Minimal dependencies.** No template engine, no React Email, no
+  framework. Plain string composition.
+
+### What this chunk explicitly does NOT include
+
+- No Resend integration
+- No SMTP
+- No outgoing email delivery
+- No API routes
+- No DB / schema / migration changes
+- No proxy / auth / booking-flow changes
+
+When the sending service is added later, it will accept a
+`RenderedEmail` and a recipient `EmailAddress`, plus tenant identity,
+and call the chosen provider.
+
+---
+
 ## Website Integration Strategy
 
 Locando is a booking engine, NOT each restaurant's website. Integration modes:
