@@ -8,6 +8,13 @@
       "when": 1778233758035,
       "tag": "0000_zippy_deathstrike",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1778442708857,
+      "tag": "0001_cloudy_lizard",
+      "breakpoints": true
     }
   ]
 }

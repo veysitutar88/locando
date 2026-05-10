@@ -166,15 +166,77 @@ Short-lived codes for guest booking verification. One active code per reservatio
 
 ---
 
+## Table: `webhook_configs`
+
+Per-tenant outgoing webhook endpoint configuration. Multiple endpoints
+per tenant allowed; `(tenant_id, url)` is unique. Added in Chunk #6.
+
+| Column | Type | Nullable | Default | Notes |
+|--------|------|----------|---------|-------|
+| id | uuid | NO | defaultRandom() | PK |
+| tenant_id | uuid | NO | — | FK → restaurants.id, ON DELETE CASCADE |
+| url | text | NO | — | Outgoing endpoint URL |
+| signing_secret | text | NO | — | Per-endpoint HMAC-SHA256 secret. Populated later by onboarding/admin UI; not generated in Chunk #6 |
+| enabled | boolean | NO | true | Disable without delete |
+| created_at | timestamptz | NO | now() | |
+| updated_at | timestamptz | NO | now() | |
+
+**Indexes:**
+- `uniqueIndex("webhook_configs_tenant_url_unique")` on `(tenant_id, url)`
+- `index("webhook_configs_tenant_idx")` on `(tenant_id)`
+- `index("webhook_configs_enabled_idx")` on `(enabled)`
+
+---
+
+## Table: `webhook_deliveries`
+
+Outbox table. Every event is persisted before delivery; nothing is lost
+if HTTP fails. Added in Chunk #6.
+
+| Column | Type | Nullable | Default | Notes |
+|--------|------|----------|---------|-------|
+| id | uuid | NO | defaultRandom() | PK |
+| tenant_id | uuid | NO | — | FK → restaurants.id, ON DELETE CASCADE |
+| webhook_config_id | uuid | YES | NULL | FK → webhook_configs.id, ON DELETE SET NULL |
+| event_type | varchar(100) | NO | — | e.g. `reservation.confirmed` |
+| payload | jsonb | NO | — | Full event payload (shape: `WebhookPayload` from `@/shared/webhooks/events`) |
+| status | webhook_delivery_status (enum) | NO | 'pending' | See enum below |
+| attempts | integer | NO | 0 | Incremented in `markFailed` via SQL expression |
+| max_attempts | integer | NO | 5 | Per-row cap; matches `WEBHOOK_MAX_ATTEMPTS` |
+| next_attempt_at | timestamptz | NO | now() | Scheduler reads `nextAttemptAt <= now` |
+| delivered_at | timestamptz | YES | NULL | Set on 2xx response |
+| last_attempt_at | timestamptz | YES | NULL | Set on every delivery attempt |
+| last_error | text | YES | NULL | Cleared on success; set on failure |
+| response_status | integer | YES | NULL | Last HTTP response status (if any) |
+| created_at | timestamptz | NO | now() | |
+| updated_at | timestamptz | NO | now() | |
+
+**Enum `webhook_delivery_status`:** `pending`, `delivered`, `failed`
+
+**Indexes:**
+- `index("webhook_deliveries_tenant_idx")` on `(tenant_id)`
+- `index("webhook_deliveries_status_next_attempt_idx")` on `(status, next_attempt_at)` — scheduler query
+- `index("webhook_deliveries_event_type_idx")` on `(event_type)`
+- `index("webhook_deliveries_config_idx")` on `(webhook_config_id)`
+
+**Retry policy** (mirrored in `src/shared/webhooks/retry.ts`):
+attempt 1 → +60s, 2 → +300s, 3 → +900s, 4 → +3600s, ≥5 → no retry,
+status moves to `failed`.
+
+---
+
 ## Relationships Summary
 
 ```
 restaurants (1)
-  ├─── (N) tables          ON DELETE CASCADE
-  ├─── (N) reservations    ON DELETE CASCADE
-  │         └─── (N) otp_codes   ON DELETE CASCADE
-  │         └─── (1) tables      ON DELETE SET NULL (table_id)
-  └─── (N) staff_users     ON DELETE CASCADE
+  ├─── (N) tables                 ON DELETE CASCADE
+  ├─── (N) reservations           ON DELETE CASCADE
+  │         └─── (N) otp_codes    ON DELETE CASCADE
+  │         └─── (1) tables       ON DELETE SET NULL (table_id)
+  ├─── (N) staff_users            ON DELETE CASCADE
+  ├─── (N) webhook_configs        ON DELETE CASCADE
+  │         └─── (N) webhook_deliveries  ON DELETE SET NULL (webhook_config_id)
+  └─── (N) webhook_deliveries     ON DELETE CASCADE (tenant_id)
 ```
 
 All tenant-scoped child tables cascade delete when a restaurant is deleted. `reservations.table_id` uses `SET NULL` instead — deleting a table preserves historical reservations.
@@ -232,4 +294,3 @@ Speculative fields that were considered for v1 but deferred to a later chunk:
 | `staff_users.invited_at` / `accepted_at` | Staff invitation flow not yet implemented | Chunk #13 (staff invitation flow) |
 | `opening_hours` table | Hours stored in JSONB on restaurant, or hardcoded for MVP | Chunk #26 (hours CRUD) |
 | `otp_codes.tenant_id` | Possible future optimization for cross-tenant uniqueness checks or denormalized indexing. Not part of Chunk #2; not implemented until a concrete use-case appears | TBD |
-| `webhook_deliveries` table | Webhook infrastructure | Chunk #6 (webhook system) |

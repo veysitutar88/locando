@@ -222,6 +222,84 @@ Each tenant gets an API key + configurable webhook URL. This enables integration
 
 ---
 
+## Webhook Infrastructure
+
+Implemented in Chunk #6. Foundation only — no background worker, no API
+routes, no UI yet. Real domain events will be enqueued from
+service-layer code once reservation transitions are implemented
+(Phase 3+).
+
+### Tables
+
+- **`webhook_configs`** — per-tenant outgoing webhook endpoints
+  (`url`, `signing_secret`, `enabled`). Multiple endpoints per tenant
+  allowed; `(tenant_id, url)` unique.
+- **`webhook_deliveries`** — outbox table. Every event is persisted
+  before delivery; nothing is lost if HTTP fails.
+
+### Code layout
+
+| File | Purpose |
+|------|---------|
+| `src/shared/webhooks/events.ts` | `WEBHOOK_EVENT_TYPES` tuple, `WebhookEventType`, `WebhookPayload` shape, `isWebhookEventType()` predicate |
+| `src/shared/webhooks/signature.ts` | HMAC-SHA256 signing of `${timestamp}.${payload}` |
+| `src/shared/webhooks/retry.ts` | Backoff schedule (60s / 300s / 900s / 3600s / final at attempt 5) |
+| `src/shared/webhooks/service.ts` | `enqueueWebhookEvent`, `deliverWebhookDelivery`, `deliverPendingWebhooks` |
+| `src/shared/db/webhook-configs-repo.ts` | tenant-scoped repo |
+| `src/shared/db/webhook-deliveries-repo.ts` | tenant-scoped repo + `findPendingDue` (cross-tenant scheduler view) |
+
+### Delivery flow
+
+1. Domain code calls `enqueueWebhookEvent({tenantId, eventType, data})`
+2. Service loads enabled configs for the tenant; for each, inserts a
+   `webhook_deliveries` row with `status='pending'`, `nextAttemptAt=now`
+3. `deliverWebhookDelivery({tenantId, deliveryId})` POSTs the payload
+   with HMAC headers; updates status to `delivered` on 2xx, or schedules
+   retry via `markFailed` with `nextAttemptAt = getNextAttemptAt(attempts+1)`
+4. After 5 attempts, status moves to `failed`; no further retry
+
+### Outgoing HTTP headers
+
+```
+content-type: application/json
+x-locando-event: <eventType>
+x-locando-delivery-id: <uuid>
+x-locando-signature: sha256=<hex>
+x-locando-timestamp: <ISO timestamp>
+```
+
+The signature is computed over `${timestamp}.${payload}` (concatenated
+with a literal `.`) using HMAC-SHA256 with the per-config
+`signing_secret`. Receivers must verify both signature and a reasonable
+timestamp window to prevent replay.
+
+### Scheduling
+
+`deliverPendingWebhooks({limit?, fetchImpl?})` is a manual-callable
+foundation that drains due `pending` deliveries sequentially. A real
+cron / background worker is **not** added in this chunk — when added
+later, it will simply call this function.
+
+### Scheduler tenant-scope exception
+
+`deliverPendingWebhooks()` is a **system-level scheduler operation**. It
+may scan due `webhook_deliveries` across tenants because it does not
+expose tenant data to users. Each delivery is then dispatched through
+`deliverWebhookDelivery(tenantId, deliveryId)`, which performs
+tenant-scoped lookup and updates. **User/admin-facing webhook queries
+must remain tenant-scoped** — `webhookDeliveriesRepo.findPendingDue()`
+is reserved for the scheduler entry point only and MUST NOT be called
+from request handlers serving a specific tenant.
+
+### Dependency boundary
+
+UI / public pages / proxy / auth modules do **not** import from
+`src/shared/webhooks/`. Only service-layer / API-route code (when it
+exists) will. Repositories live under `src/shared/db/` and are covered
+by the existing ESLint guard.
+
+---
+
 ## Website Integration Strategy
 
 Locando is a booking engine, NOT each restaurant's website. Integration modes:

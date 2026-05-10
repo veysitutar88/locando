@@ -10,6 +10,8 @@ import {
   uniqueIndex,
   date,
   time,
+  boolean,
+  jsonb,
 } from 'drizzle-orm/pg-core';
 import { sql, relations } from 'drizzle-orm';
 
@@ -22,6 +24,12 @@ export const reservationStatusEnum = pgEnum('reservation_status', [
 ]);
 
 export const staffRoleEnum = pgEnum('staff_role', ['owner', 'waiter']);
+
+export const webhookDeliveryStatusEnum = pgEnum('webhook_delivery_status', [
+  'pending',
+  'delivered',
+  'failed',
+]);
 
 export const restaurants = pgTable(
   'restaurants',
@@ -159,10 +167,77 @@ export const otpCodes = pgTable(
   ],
 );
 
+export const webhookConfigs = pgTable(
+  'webhook_configs',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => restaurants.id, { onDelete: 'cascade' }),
+    url: text('url').notNull(),
+    signingSecret: text('signing_secret').notNull(),
+    enabled: boolean('enabled').default(true).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex('webhook_configs_tenant_url_unique').on(table.tenantId, table.url),
+    index('webhook_configs_tenant_idx').on(table.tenantId),
+    index('webhook_configs_enabled_idx').on(table.enabled),
+  ],
+);
+
+export const webhookDeliveries = pgTable(
+  'webhook_deliveries',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => restaurants.id, { onDelete: 'cascade' }),
+    webhookConfigId: uuid('webhook_config_id').references(
+      () => webhookConfigs.id,
+      { onDelete: 'set null' },
+    ),
+    eventType: varchar('event_type', { length: 100 }).notNull(),
+    payload: jsonb('payload').notNull(),
+    status: webhookDeliveryStatusEnum('status').default('pending').notNull(),
+    attempts: integer('attempts').default(0).notNull(),
+    maxAttempts: integer('max_attempts').default(5).notNull(),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    deliveredAt: timestamp('delivered_at', { withTimezone: true }),
+    lastAttemptAt: timestamp('last_attempt_at', { withTimezone: true }),
+    lastError: text('last_error'),
+    responseStatus: integer('response_status'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index('webhook_deliveries_tenant_idx').on(table.tenantId),
+    index('webhook_deliveries_status_next_attempt_idx').on(
+      table.status,
+      table.nextAttemptAt,
+    ),
+    index('webhook_deliveries_event_type_idx').on(table.eventType),
+    index('webhook_deliveries_config_idx').on(table.webhookConfigId),
+  ],
+);
+
 export const restaurantsRelations = relations(restaurants, ({ many }) => ({
   tables: many(tables),
   reservations: many(reservations),
   staffUsers: many(staffUsers),
+  webhookConfigs: many(webhookConfigs),
+  webhookDeliveries: many(webhookDeliveries),
 }));
 
 export const tablesRelations = relations(tables, ({ one, many }) => ({
@@ -201,3 +276,28 @@ export const otpCodesRelations = relations(otpCodes, ({ one }) => ({
     references: [reservations.id],
   }),
 }));
+
+export const webhookConfigsRelations = relations(
+  webhookConfigs,
+  ({ one, many }) => ({
+    restaurant: one(restaurants, {
+      fields: [webhookConfigs.tenantId],
+      references: [restaurants.id],
+    }),
+    deliveries: many(webhookDeliveries),
+  }),
+);
+
+export const webhookDeliveriesRelations = relations(
+  webhookDeliveries,
+  ({ one }) => ({
+    restaurant: one(restaurants, {
+      fields: [webhookDeliveries.tenantId],
+      references: [restaurants.id],
+    }),
+    webhookConfig: one(webhookConfigs, {
+      fields: [webhookDeliveries.webhookConfigId],
+      references: [webhookConfigs.id],
+    }),
+  }),
+);
