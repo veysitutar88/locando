@@ -168,6 +168,7 @@ Portability remains high if we avoid Neon-specific features (e.g., Neon's branch
 - Each reservation state change emits an event (`reservation.confirmed`, etc.)
 - Each tenant can configure a webhook URL and API key in their settings
 - Webhook delivery is async (queue-based or background job — design TBD in Chunk #6)
+- Implementation (Chunk #6): webhook infrastructure is implemented as explicit `webhook_configs` and `webhook_deliveries` tables. `webhook_deliveries` acts as an outbox so events are persisted before delivery and nothing is lost if HTTP fails. No cron / background worker is added yet; `deliverPendingWebhooks()` in `src/shared/webhooks/service.ts` is a manual-callable foundation for later scheduling. Outgoing requests are signed via HMAC-SHA256 over `${timestamp}.${payload}` using a per-config `signing_secret`. Headers: `x-locando-signature`, `x-locando-event`, `x-locando-delivery-id`, `x-locando-timestamp`. Retry policy: attempt 1 → +60s, 2 → +300s, 3 → +900s, 4 → +3600s, ≥5 → status `failed`. Real reservation events are NOT yet emitted — that wiring belongs to the reservation service when transitions are implemented (Phase 3+).
 
 ---
 
